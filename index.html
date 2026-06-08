@@ -59,42 +59,51 @@
       padding: 1rem 1.5rem 1.5rem;
     }
 
-    .pdf-container {
+    .map-viewer {
       flex: 1;
-      position: relative;
       min-height: 0;
       background: var(--surface-elevated);
       border: 1px solid var(--border);
       border-radius: 6px;
-      overflow: hidden;
+      overflow: auto;
       box-shadow: 0 4px 24px rgba(42, 45, 38, 0.08);
+      -webkit-overflow-scrolling: touch;
     }
 
-    .pdf-container iframe {
+    .map-stage {
+      position: relative;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .map-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .map-links {
       position: absolute;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: #fff;
+      pointer-events: none;
     }
 
-    .fallback {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      height: 100%;
-      padding: 2rem;
-      text-align: center;
-      color: var(--primary-light);
-      font-family: "Fira Sans", sans-serif;
+    .map-links a {
+      position: absolute;
+      pointer-events: auto;
+      background: transparent;
+      border-radius: 2px;
+      transition: background 0.15s, outline 0.15s;
     }
 
-    .fallback p {
-      max-width: 28rem;
-      line-height: 1.5;
+    .map-links a:hover,
+    .map-links a:focus-visible {
+      outline: 2px solid rgba(98, 107, 81, 0.55);
+      background: rgba(98, 107, 81, 0.12);
+    }
+
+    .map-links a:focus-visible {
+      outline-offset: 1px;
     }
 
     @media (max-width: 600px) {
@@ -118,22 +127,46 @@
   </header>
 
   <main>
-    <div class="pdf-container">
-      <iframe
-        id="pdf-viewer"
-        src="map.pdf"
-        title="PDF Dokument"
-      ></iframe>
-      <noscript>
-        <div class="fallback" style="display: flex;">
-          <p>JavaScript ist deaktiviert. Bitte öffne die PDF direkt.</p>
-        </div>
-      </noscript>
+    <div class="map-viewer">
+      <div class="map-stage" id="map-stage">
+        <img class="map-svg" src="map.svg" alt="Andermatt destination map" width="978" height="1389">
+        <div class="map-links" id="map-links" aria-hidden="true"></div>
+      </div>
     </div>
   </main>
 
+  <script id="map-link-data" type="application/json">
+    {"width":977.953,"height":1388.98,"links":[]}
+  </script>
   <script>
-    document.getElementById("pdf-viewer").src = "map.pdf";
+    function loadMapLinks() {
+      const container = document.getElementById("map-links");
+      const data = JSON.parse(document.getElementById("map-link-data").textContent);
+
+      for (const link of data.links) {
+        const anchor = document.createElement("a");
+        anchor.href = link.href;
+        anchor.target = link.href.startsWith("#") ? "_self" : "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.style.left = `${link.left}%`;
+        anchor.style.top = `${link.top}%`;
+        anchor.style.width = `${link.width}%`;
+        anchor.style.height = `${link.height}%`;
+
+        if (link.title) {
+          anchor.title = link.title;
+          anchor.setAttribute("aria-label", link.title);
+        }
+
+        container.appendChild(anchor);
+      }
+
+      if (data.links.length > 0) {
+        container.removeAttribute("aria-hidden");
+      }
+    }
+
+    loadMapLinks();
   </script>
 </body>
 </html>
