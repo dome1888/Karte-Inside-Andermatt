@@ -1,12 +1,15 @@
-"""Convert map.pdf to SVG and extract clickable link areas for HTML overlay."""
+"""Convert map.pdf into a single self-contained index.html with inline SVG."""
 import json
+import re
 from pathlib import Path
 
 import fitz
 
 ROOT = Path(__file__).resolve().parent
 PDF_PATH = ROOT / "map.pdf"
-SVG_PATH = ROOT / "map.svg"
+INDEX_PATH = ROOT / "index.html"
+SVG_START = "<!-- MAP_SVG_START -->"
+SVG_END = "<!-- MAP_SVG_END -->"
 
 
 def link_href(link: dict) -> str | None:
@@ -32,13 +35,30 @@ def rect_to_percent(rect: fitz.Rect, page_rect: fitz.Rect) -> dict:
     }
 
 
+def prepare_svg(svg: str) -> str:
+    svg = svg.strip()
+    if 'class="map-svg"' not in svg:
+        svg = re.sub(
+            r"<svg\b",
+            '<svg class="map-svg" role="img" aria-label="Andermatt destination map"',
+            svg,
+            count=1,
+        )
+    return svg
+
+
+def replace_between(text: str, start_marker: str, end_marker: str, content: str) -> str:
+    start = text.index(start_marker) + len(start_marker)
+    end = text.index(end_marker, start)
+    return text[:start] + "\n        " + content + "\n        " + text[end:]
+
+
 def main() -> None:
     doc = fitz.open(PDF_PATH)
     page = doc[0]
     page_rect = page.rect
 
-    svg = page.get_svg_image()
-    SVG_PATH.write_text(svg, encoding="utf-8")
+    svg = prepare_svg(page.get_svg_image())
 
     links = []
     for link in page.get_links():
@@ -60,20 +80,21 @@ def main() -> None:
         "links": links,
     }
     payload_json = json.dumps(payload, separators=(",", ":"))
-    index_path = ROOT / "index.html"
-    index_html = index_path.read_text(encoding="utf-8")
+
+    index_html = INDEX_PATH.read_text(encoding="utf-8")
+    index_html = replace_between(index_html, SVG_START, SVG_END, svg)
+
     marker_start = '<script id="map-link-data" type="application/json">'
     marker_end = "</script>"
     start = index_html.index(marker_start) + len(marker_start)
     end = index_html.index(marker_end, start)
-    index_path.write_text(
-        index_html[:start] + "\n    " + payload_json + "\n  " + index_html[end:],
-        encoding="utf-8",
-    )
+    index_html = index_html[:start] + "\n    " + payload_json + "\n  " + index_html[end:]
 
+    INDEX_PATH.write_text(index_html, encoding="utf-8")
     doc.close()
-    print(f"Wrote {SVG_PATH.name} ({SVG_PATH.stat().st_size:,} bytes)")
-    print(f"Updated index.html with {len(links)} clickable area(s)")
+
+    print(f"Wrote {INDEX_PATH.name} ({INDEX_PATH.stat().st_size:,} bytes)")
+    print(f"Embedded SVG with {len(links)} clickable area(s)")
 
 
 if __name__ == "__main__":
